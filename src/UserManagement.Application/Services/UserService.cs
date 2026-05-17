@@ -27,6 +27,23 @@ public sealed class UserService : IUserService
         return MapToResponse(createdUser);
     }
 
+    public async Task<UserResponse?> UpdateAsync(Guid id, CreateUserCommand command, CancellationToken cancellationToken)
+    {
+        Validate(command);
+
+        var existingUser = await _userRepository.GetByIdAsync(id, cancellationToken);
+
+        if (existingUser is null)
+        {
+            return null;
+        }
+
+        var updatedUser = _userFactory.Create(command) with { Id = id, CreatedAtUtc = existingUser.CreatedAtUtc };
+        var persistedUser = await _userRepository.UpdateAsync(updatedUser, cancellationToken);
+
+        return MapToResponse(persistedUser);
+    }
+
     public async Task<IReadOnlyCollection<UserResponse>> GetAllAsync(CancellationToken cancellationToken)
     {
         var users = await _userRepository.GetAllAsync(cancellationToken);
