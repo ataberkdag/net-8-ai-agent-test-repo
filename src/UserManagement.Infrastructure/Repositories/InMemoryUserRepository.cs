@@ -34,4 +34,17 @@ public sealed class InMemoryUserRepository : IUserRepository
 
         return Task.FromResult(user);
     }
+
+    public Task<User?> UpdateAsync(User user, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_users.ContainsKey(user.Id))
+        {
+            return Task.FromResult<User?>(null);
+        }
+
+        _users[user.Id] = user;
+        return Task.FromResult<User?>(user);
+    }
 }
