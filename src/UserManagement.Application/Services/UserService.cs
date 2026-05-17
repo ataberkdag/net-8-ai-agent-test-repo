@@ -19,12 +19,58 @@ public sealed class UserService : IUserService
 
     public async Task<UserResponse> CreateAsync(CreateUserCommand command, CancellationToken cancellationToken)
     {
-        Validate(command);
+        Validate(command.FirstName, command.LastName, command.Email, command.UserType, command.PermissionLevel, command.LoyaltyCode, command.Department);
 
         var user = _userFactory.Create(command);
         var createdUser = await _userRepository.AddAsync(user, cancellationToken);
 
         return MapToResponse(createdUser);
+    }
+
+    public async Task<UserResponse?> UpdateAsync(Guid id, UpdateUserCommand command, CancellationToken cancellationToken)
+    {
+        Validate(command.FirstName, command.LastName, command.Email, command.UserType, command.PermissionLevel, command.LoyaltyCode, command.Department);
+
+        var existingUser = await _userRepository.GetByIdAsync(id, cancellationToken);
+        if (existingUser is null)
+        {
+            return null;
+        }
+
+        var updatedUser = existingUser switch
+        {
+            AdminUser admin => _userFactory.Create(new CreateUserCommand(
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.UserType,
+                command.PermissionLevel,
+                command.LoyaltyCode,
+                command.Department)),
+            CustomerUser customer => _userFactory.Create(new CreateUserCommand(
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.UserType,
+                command.PermissionLevel,
+                command.LoyaltyCode,
+                command.Department)),
+            EmployeeUser employee => _userFactory.Create(new CreateUserCommand(
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.UserType,
+                command.PermissionLevel,
+                command.LoyaltyCode,
+                command.Department)),
+            _ => throw new InvalidOperationException("Unsupported user type.")
+        };
+
+        updatedUser = RestoreIdentity(existingUser, updatedUser);
+
+        var persistedUser = await _userRepository.UpdateAsync(updatedUser, cancellationToken);
+
+        return persistedUser is null ? null : MapToResponse(persistedUser);
     }
 
     public async Task<IReadOnlyCollection<UserResponse>> GetAllAsync(CancellationToken cancellationToken)
@@ -43,35 +89,35 @@ public sealed class UserService : IUserService
         return user is null ? null : MapToResponse(user);
     }
 
-    private static void Validate(CreateUserCommand command)
+    private static void Validate(string firstName, string lastName, string email, UserType userType, string? permissionLevel, string? loyaltyCode, string? department)
     {
-        if (string.IsNullOrWhiteSpace(command.FirstName))
+        if (string.IsNullOrWhiteSpace(firstName))
         {
             throw new UserValidationException("FirstName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.LastName))
+        if (string.IsNullOrWhiteSpace(lastName))
         {
             throw new UserValidationException("LastName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.Email))
+        if (string.IsNullOrWhiteSpace(email))
         {
             throw new UserValidationException("Email is required.");
         }
 
-        if (!IsValidEmail(command.Email))
+        if (!IsValidEmail(email))
         {
             throw new UserValidationException("Email format is invalid.");
         }
 
-        switch (command.UserType)
+        switch (userType)
         {
-            case UserType.Admin when string.IsNullOrWhiteSpace(command.PermissionLevel):
+            case UserType.Admin when string.IsNullOrWhiteSpace(permissionLevel):
                 throw new UserValidationException("PermissionLevel is required for admin users.");
-            case UserType.Customer when string.IsNullOrWhiteSpace(command.LoyaltyCode):
+            case UserType.Customer when string.IsNullOrWhiteSpace(loyaltyCode):
                 throw new UserValidationException("LoyaltyCode is required for customer users.");
-            case UserType.Employee when string.IsNullOrWhiteSpace(command.Department):
+            case UserType.Employee when string.IsNullOrWhiteSpace(department):
                 throw new UserValidationException("Department is required for employee users.");
         }
     }
@@ -87,6 +133,35 @@ public sealed class UserService : IUserService
         {
             return false;
         }
+    }
+
+    private static User RestoreIdentity(User existingUser, User updatedUser)
+    {
+        return updatedUser switch
+        {
+            AdminUser adminUpdated when existingUser is AdminUser adminExisting => new AdminUser(
+                adminExisting.Id,
+                adminUpdated.FirstName,
+                adminUpdated.LastName,
+                adminUpdated.Email,
+                adminUpdated.PermissionLevel,
+                adminExisting.CreatedAtUtc),
+            CustomerUser customerUpdated when existingUser is CustomerUser customerExisting => new CustomerUser(
+                customerExisting.Id,
+                customerUpdated.FirstName,
+                customerUpdated.LastName,
+                customerUpdated.Email,
+                customerUpdated.LoyaltyCode,
+                customerExisting.CreatedAtUtc),
+            EmployeeUser employeeUpdated when existingUser is EmployeeUser employeeExisting => new EmployeeUser(
+                employeeExisting.Id,
+                employeeUpdated.FirstName,
+                employeeUpdated.LastName,
+                employeeUpdated.Email,
+                employeeUpdated.Department,
+                employeeExisting.CreatedAtUtc),
+            _ => updatedUser
+        };
     }
 
     private static UserResponse MapToResponse(User user)
