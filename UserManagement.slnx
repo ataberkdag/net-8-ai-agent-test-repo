@@ -5,4 +5,7 @@
     <Project Path="src/UserManagement.Domain/UserManagement.Domain.csproj" />
     <Project Path="src/UserManagement.Infrastructure/UserManagement.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/UserManagement.Application.Tests/UserManagement.Application.Tests.csproj" />
+  </Folder>
 </Solution>

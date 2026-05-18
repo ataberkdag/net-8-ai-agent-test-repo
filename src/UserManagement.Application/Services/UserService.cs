@@ -19,7 +19,7 @@ public sealed class UserService : IUserService
 
     public async Task<UserResponse> CreateAsync(CreateUserCommand command, CancellationToken cancellationToken)
     {
-        Validate(command);
+        Validate(command.FirstName, command.LastName, command.Email, command.UserType, command.PermissionLevel, command.LoyaltyCode, command.Department);
 
         var user = _userFactory.Create(command);
         var createdUser = await _userRepository.AddAsync(user, cancellationToken);
@@ -43,35 +43,64 @@ public sealed class UserService : IUserService
         return user is null ? null : MapToResponse(user);
     }
 
-    private static void Validate(CreateUserCommand command)
+    public async Task<UserResponse?> UpdateAsync(UpdateUserCommand command, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(command.FirstName))
+        if (command.Id == Guid.Empty)
+        {
+            throw new UserValidationException("Id is required.");
+        }
+
+        Validate(command.FirstName, command.LastName, command.Email, command.UserType, command.PermissionLevel, command.LoyaltyCode, command.Department);
+
+        var existingUser = await _userRepository.GetByIdAsync(command.Id, cancellationToken);
+
+        if (existingUser is null)
+        {
+            return null;
+        }
+
+        var updatedUser = _userFactory.Create(command, existingUser.CreatedAtUtc);
+        var savedUser = await _userRepository.UpdateAsync(updatedUser, cancellationToken);
+
+        return savedUser is null ? null : MapToResponse(savedUser);
+    }
+
+    private static void Validate(
+        string firstName,
+        string lastName,
+        string email,
+        UserType userType,
+        string? permissionLevel,
+        string? loyaltyCode,
+        string? department)
+    {
+        if (string.IsNullOrWhiteSpace(firstName))
         {
             throw new UserValidationException("FirstName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.LastName))
+        if (string.IsNullOrWhiteSpace(lastName))
         {
             throw new UserValidationException("LastName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.Email))
+        if (string.IsNullOrWhiteSpace(email))
         {
             throw new UserValidationException("Email is required.");
         }
 
-        if (!IsValidEmail(command.Email))
+        if (!IsValidEmail(email))
         {
             throw new UserValidationException("Email format is invalid.");
         }
 
-        switch (command.UserType)
+        switch (userType)
         {
-            case UserType.Admin when string.IsNullOrWhiteSpace(command.PermissionLevel):
+            case UserType.Admin when string.IsNullOrWhiteSpace(permissionLevel):
                 throw new UserValidationException("PermissionLevel is required for admin users.");
-            case UserType.Customer when string.IsNullOrWhiteSpace(command.LoyaltyCode):
+            case UserType.Customer when string.IsNullOrWhiteSpace(loyaltyCode):
                 throw new UserValidationException("LoyaltyCode is required for customer users.");
-            case UserType.Employee when string.IsNullOrWhiteSpace(command.Department):
+            case UserType.Employee when string.IsNullOrWhiteSpace(department):
                 throw new UserValidationException("Department is required for employee users.");
         }
     }
