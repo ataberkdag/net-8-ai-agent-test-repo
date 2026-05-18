@@ -43,6 +43,33 @@ public sealed class UsersController : ControllerBase
         }
     }
 
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var command = new UpdateUserCommand(
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.UserType,
+                request.PermissionLevel,
+                request.LoyaltyCode,
+                request.Department);
+
+            var updatedUser = await _userService.UpdateAsync(id, command, cancellationToken);
+
+            return updatedUser is null ? NotFound() : Ok(updatedUser);
+        }
+        catch (UserValidationException exception)
+        {
+            return ValidationProblem(detail: exception.Message);
+        }
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyCollection<UserResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<UserResponse>>> GetAll(CancellationToken cancellationToken)

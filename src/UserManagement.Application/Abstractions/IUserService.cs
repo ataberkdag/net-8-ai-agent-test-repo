@@ -6,6 +6,8 @@ public interface IUserService
 {
     Task<UserResponse> CreateAsync(CreateUserCommand command, CancellationToken cancellationToken);
 
+    Task<UserResponse?> UpdateAsync(Guid id, UpdateUserCommand command, CancellationToken cancellationToken);
+
     Task<IReadOnlyCollection<UserResponse>> GetAllAsync(CancellationToken cancellationToken);
 
     Task<UserResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
