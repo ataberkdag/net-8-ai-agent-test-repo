@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using UserManagement.Api.Contracts;
 using UserManagement.Application.Abstractions;
@@ -36,6 +37,39 @@ public sealed class UsersController : ControllerBase
             var createdUser = await _userService.CreateAsync(command, cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = createdUser.Id }, createdUser);
+        }
+        catch (UserValidationException exception)
+        {
+            return ValidationProblem(detail: exception.Message);
+        }
+    }
+
+    [HttpPut]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update([FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var command = new UpdateUserCommand(
+                request.Id,
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.UserType,
+                request.PermissionLevel,
+                request.LoyaltyCode,
+                request.Department);
+
+            var updatedUser = await _userService.UpdateAsync(command, cancellationToken);
+
+            if (updatedUser is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(updatedUser);
         }
         catch (UserValidationException exception)
         {

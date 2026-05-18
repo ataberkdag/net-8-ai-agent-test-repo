@@ -9,4 +9,6 @@ public interface IUserRepository
     Task<IReadOnlyCollection<User>> GetAllAsync(CancellationToken cancellationToken);
 
     Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    Task<User?> UpdateAsync(User user, CancellationToken cancellationToken);
 }
