@@ -16,6 +16,20 @@ public sealed class InMemoryUserRepository : IUserRepository
         return Task.FromResult(user);
     }
 
+    public Task<User> UpdateAsync(Guid id, User user, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_users.ContainsKey(id))
+        {
+            throw new KeyNotFoundException($"User with id '{id}' was not found.");
+        }
+
+        _users[id] = user;
+
+        return Task.FromResult(user);
+    }
+
     public Task<IReadOnlyCollection<User>> GetAllAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
