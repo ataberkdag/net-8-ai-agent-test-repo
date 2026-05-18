@@ -1,4 +1,9 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using UserManagement.Application.Abstractions;
 using UserManagement.Domain.Entities;
 
@@ -14,6 +19,20 @@ public sealed class InMemoryUserRepository : IUserRepository
         _users[user.Id] = user;
 
         return Task.FromResult(user);
+    }
+
+    public Task<User?> UpdateAsync(User user, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_users.ContainsKey(user.Id))
+        {
+            return Task.FromResult<User?>(null);
+        }
+
+        _users[user.Id] = user;
+
+        return Task.FromResult<User?>(user);
     }
 
     public Task<IReadOnlyCollection<User>> GetAllAsync(CancellationToken cancellationToken)

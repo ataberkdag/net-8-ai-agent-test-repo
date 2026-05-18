@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Mail;
+using System.Threading;
+using System.Threading.Tasks;
 using UserManagement.Application.Abstractions;
 using UserManagement.Application.Exceptions;
 using UserManagement.Application.Models;
@@ -27,6 +33,23 @@ public sealed class UserService : IUserService
         return MapToResponse(createdUser);
     }
 
+    public async Task<UserResponse?> UpdateAsync(UpdateUserCommand command, CancellationToken cancellationToken)
+    {
+        Validate(command);
+
+        var existingUser = await _userRepository.GetByIdAsync(command.Id, cancellationToken);
+
+        if (existingUser is null)
+        {
+            return null;
+        }
+
+        var updatedUser = CreateUpdatedUser(command, existingUser.CreatedAtUtc);
+        var savedUser = await _userRepository.UpdateAsync(updatedUser, cancellationToken);
+
+        return savedUser is null ? null : MapToResponse(savedUser);
+    }
+
     public async Task<IReadOnlyCollection<UserResponse>> GetAllAsync(CancellationToken cancellationToken)
     {
         var users = await _userRepository.GetAllAsync(cancellationToken);
@@ -45,33 +68,69 @@ public sealed class UserService : IUserService
 
     private static void Validate(CreateUserCommand command)
     {
-        if (string.IsNullOrWhiteSpace(command.FirstName))
+        Validate(
+            command.FirstName,
+            command.LastName,
+            command.Email,
+            command.UserType,
+            command.PermissionLevel,
+            command.LoyaltyCode,
+            command.Department);
+    }
+
+    private static void Validate(UpdateUserCommand command)
+    {
+        if (command.Id == Guid.Empty)
+        {
+            throw new UserValidationException("Id is required.");
+        }
+
+        Validate(
+            command.FirstName,
+            command.LastName,
+            command.Email,
+            command.UserType,
+            command.PermissionLevel,
+            command.LoyaltyCode,
+            command.Department);
+    }
+
+    private static void Validate(
+        string firstName,
+        string lastName,
+        string email,
+        UserType userType,
+        string? permissionLevel,
+        string? loyaltyCode,
+        string? department)
+    {
+        if (string.IsNullOrWhiteSpace(firstName))
         {
             throw new UserValidationException("FirstName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.LastName))
+        if (string.IsNullOrWhiteSpace(lastName))
         {
             throw new UserValidationException("LastName is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(command.Email))
+        if (string.IsNullOrWhiteSpace(email))
         {
             throw new UserValidationException("Email is required.");
         }
 
-        if (!IsValidEmail(command.Email))
+        if (!IsValidEmail(email))
         {
             throw new UserValidationException("Email format is invalid.");
         }
 
-        switch (command.UserType)
+        switch (userType)
         {
-            case UserType.Admin when string.IsNullOrWhiteSpace(command.PermissionLevel):
+            case UserType.Admin when string.IsNullOrWhiteSpace(permissionLevel):
                 throw new UserValidationException("PermissionLevel is required for admin users.");
-            case UserType.Customer when string.IsNullOrWhiteSpace(command.LoyaltyCode):
+            case UserType.Customer when string.IsNullOrWhiteSpace(loyaltyCode):
                 throw new UserValidationException("LoyaltyCode is required for customer users.");
-            case UserType.Employee when string.IsNullOrWhiteSpace(command.Department):
+            case UserType.Employee when string.IsNullOrWhiteSpace(department):
                 throw new UserValidationException("Department is required for employee users.");
         }
     }
@@ -80,13 +139,42 @@ public sealed class UserService : IUserService
     {
         try
         {
-            _ = new System.Net.Mail.MailAddress(email);
+            _ = new MailAddress(email);
             return true;
         }
         catch (FormatException)
         {
             return false;
         }
+    }
+
+    private static User CreateUpdatedUser(UpdateUserCommand command, DateTime createdAtUtc)
+    {
+        return command.UserType switch
+        {
+            UserType.Admin => new AdminUser(
+                command.Id,
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.PermissionLevel!,
+                createdAtUtc),
+            UserType.Customer => new CustomerUser(
+                command.Id,
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.LoyaltyCode!,
+                createdAtUtc),
+            UserType.Employee => new EmployeeUser(
+                command.Id,
+                command.FirstName,
+                command.LastName,
+                command.Email,
+                command.Department!,
+                createdAtUtc),
+            _ => throw new InvalidOperationException("Unsupported user type.")
+        };
     }
 
     private static UserResponse MapToResponse(User user)
